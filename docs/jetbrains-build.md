@@ -65,19 +65,21 @@ The version of record is the `JB_VERSION` file: `<upstream version>-jb.<n>`, cur
 
 ## Cutting a release
 
-```bash
-# 1. optional: merge a new upstream release first
-# 2. bump the version of record
-echo "0.0.83-jb.2" > JB_VERSION
-git commit -am "chore: JB_VERSION 0.0.83-jb.2"
+Releases are cut from `main` only.
 
-# 3. tag and push - the tag is the trigger
-git tag jb-v0.0.83-jb.2
-git push origin HEAD jb-v0.0.83-jb.2
+```bash
+# 1. optional: merge a new upstream release first (see "Syncing with upstream")
+# 2. bump the version of record in a PR to main and merge it
+echo "0.0.83-jb.2" > JB_VERSION
+
+# 3. tag the merged commit on main and push the tag - the tag is the trigger
+git fetch origin
+git tag jb-v0.0.83-jb.2 origin/main
+git push origin jb-v0.0.83-jb.2
 ```
 
-The workflow refuses to publish if the tag does not equal `jb-v$(cat JB_VERSION)`, if
-`scripts/check-modifications.sh`, `npm run build` (`tsc`), `npm test` or
+The workflow refuses to publish if the tagged commit is not on `main`, if the tag does not equal
+`jb-v$(cat JB_VERSION)`, if `scripts/check-modifications.sh`, `npm run build` (`tsc`), `npm test` or
 `scripts/collect-third-party-licenses.sh` fail, or if any native platform/architecture smoke test
 fails. The `test` job installs `ripgrep` and `zsh` with Homebrew first, the same system dependencies
 `integration-tests.yml` installs on its macOS lane.
