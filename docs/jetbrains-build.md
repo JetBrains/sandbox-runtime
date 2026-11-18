@@ -32,23 +32,14 @@ additively (opt-in options, new branches) so upstream merges stay small.
 `main` is upstream plus our delta. History is never rewritten: upstream releases come in as merges, and
 our own changes land as squash-merged PRs.
 
-```bash
-git remote add upstream https://github.com/anthropics/sandbox-runtime.git  # once
-git fetch upstream --tags
-git switch -c jb/merge-upstream-v0.0.84 origin/main
-git merge v0.0.84
-```
-
 - Sync to upstream **release tags**, not to `upstream/main`, so every base is a released version and
   `JB_VERSION` names a real tag.
-- In the same PR, set `Upstream base` in `MODIFICATIONS` to the new tag and its full commit sha, and
-  reset `JB_VERSION` to `<new version>-jb.1`.
 - Merge the sync PR with **Create a merge commit**, never squash or rebase: a squashed sync drops
   upstream's ancestry and the next sync re-conflicts on everything.
-- Sync when a fix or feature is needed, at the latest once per upstream release, and immediately for
-  security fixes.
-- `git config rerere.enabled true` replays conflict resolutions on the next sync.
 - `git diff <upstream tag> origin/main` shows the complete delta at any time.
+
+The full procedure, including conflict rules, the files to update in the sync PR, backports and repairing
+a squashed sync, is the [`sync-upstream`](../.agents/skills/sync-upstream/SKILL.md) skill.
 
 ---
 
@@ -288,4 +279,5 @@ scripts/smoke-test-srt.sh
 scripts/smoke-test-srt-fixture.py
 scripts/collect-third-party-licenses.sh
 docs/jetbrains-build.md
+.agents/skills/sync-upstream/SKILL.md
 ```
