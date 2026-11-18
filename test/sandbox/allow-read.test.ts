@@ -453,6 +453,7 @@ describe('allowRead without denyRead does not trigger sandboxing', () => {
         needsNetworkRestriction: false,
         readConfig: { denyOnly: [], allowWithinDeny: ['/some/path'] },
         writeConfig: undefined,
+        allowAllUnixSockets: true,
       })
 
       expect(result).toBe(command)

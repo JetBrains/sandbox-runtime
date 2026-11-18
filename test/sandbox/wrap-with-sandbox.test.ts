@@ -193,9 +193,24 @@ describe('restriction pattern semantics', () => {
           needsNetworkRestriction: false,
           readConfig: { denyOnly: [] },
           writeConfig: undefined,
+          allowAllUnixSockets: true,
         })
 
         expect(result).toBe(command)
+      },
+    )
+
+    it.if(isLinux)(
+      'still wraps an otherwise unrestricted command to block Unix sockets on Linux',
+      async () => {
+        const result = await wrapCommandWithSandboxLinux({
+          command,
+          needsNetworkRestriction: false,
+          readConfig: { denyOnly: [] },
+          writeConfig: undefined,
+        }).catch((e: Error) => e.message)
+
+        expect(result).not.toBe(command)
       },
     )
 
@@ -222,6 +237,7 @@ describe('restriction pattern semantics', () => {
           needsNetworkRestriction: false,
           readConfig: undefined,
           writeConfig: undefined,
+          allowAllUnixSockets: true,
         })
 
         expect(result).toBe(command)
