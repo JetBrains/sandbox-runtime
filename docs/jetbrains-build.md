@@ -6,9 +6,10 @@ This fork exists to ship `srt` inside the JetBrains Junie CLI instead of asking 
 and publishes them as GitHub Release assets. Linux also ships the native `apply-seccomp` helper.
 Junie's packaging downloads, verifies and stages them; macOS packaging also signs them.
 
-The functional changes over `anthropic-experimental/sandbox-runtime` are the
-`network.unrestricted` / `--unrestricted-network` option (commit `c857ae7`), executable-relative
-Linux helper discovery, and fail-closed Unix-socket blocking, documented in `MODIFICATIONS`.
+The functional changes over [`anthropics/sandbox-runtime`](https://github.com/anthropics/sandbox-runtime)
+are the `network.unrestricted` / `--unrestricted-network` option, executable-relative Linux helper
+discovery, fail-closed Unix-socket blocking and the opt-in `skipUserNamespace` option, documented in
+`MODIFICATIONS`.
 
 ---
 
@@ -17,42 +18,69 @@ Linux helper discovery, and fail-closed Unix-socket blocking, documented in `MOD
 `release.yml` is upstream's: its `publish` job runs `npm publish` for `@anthropic-ai/sandbox-runtime`
 with upstream's `NPM_TOKEN` and `--provenance`, and it gates on the release tag living on upstream
 `main`. Editing it would be both wrong (we must not publish to their npm name) and painful (a conflict
-on every rebase onto upstream).
+on every upstream merge).
 
 The same reasoning applies to everything else here: `release.yml` and `integration-tests.yml` must stay
 **byte-identical to upstream**, and `package.json` `version` is never bumped. Keep the fork's delta at
-the unrestricted-network change, the Linux helper changes and the JetBrains-only files listed below.
+the changes listed in `MODIFICATIONS` and the JetBrains-only files listed below. Change upstream files
+additively (opt-in options, new branches) so upstream merges stay small.
+
+---
+
+## Syncing with upstream
+
+`main` is upstream plus our delta. History is never rewritten: upstream releases come in as merges, and
+our own changes land as squash-merged PRs.
+
+```bash
+git remote add upstream https://github.com/anthropics/sandbox-runtime.git  # once
+git fetch upstream --tags
+git switch -c jb/merge-upstream-v0.0.84 origin/main
+git merge v0.0.84
+```
+
+- Sync to upstream **release tags**, not to `upstream/main`, so every base is a released version and
+  `JB_VERSION` names a real tag.
+- In the same PR, set `Upstream base` in `MODIFICATIONS` to the new tag and its full commit sha, and
+  reset `JB_VERSION` to `<new version>-jb.1`.
+- Merge the sync PR with **Create a merge commit**, never squash or rebase: a squashed sync drops
+  upstream's ancestry and the next sync re-conflicts on everything.
+- Sync when a fix or feature is needed, at the latest once per upstream release, and immediately for
+  security fixes.
+- `git config rerere.enabled true` replays conflict resolutions on the next sync.
+- `git diff <upstream tag> origin/main` shows the complete delta at any time.
 
 ---
 
 ## Versioning
 
-The version of record is the `JB_VERSION` file: `<upstream version>-jb.<n>`, currently `0.0.82-jb.1`.
+The version of record is the `JB_VERSION` file: `<upstream version>-jb.<n>`, currently `0.0.83-jb.1`.
 
 - Bump `<n>` when you rebuild the same upstream version (a workflow fix, a new dependency lockfile).
-- Bump the upstream part after a rebase onto a new upstream release, and reset `<n>` to 1.
-- `package.json` stays untouched, which is why `srt --version` still prints upstream's `0.0.82`. Identify
-  a build by its asset name and sha256, not by `--version`.
+- Bump the upstream part after merging a new upstream release, and reset `<n>` to 1.
+- `package.json` stays untouched, which is why `srt --version` prints upstream's `0.0.83`. Identify a
+  build by its asset name and sha256, not by `--version`.
 
 ---
 
 ## Cutting a release
 
 ```bash
-# 1. optional: update from a new upstream release first
+# 1. optional: merge a new upstream release first
 # 2. bump the version of record
-echo "0.0.82-jb.2" > JB_VERSION
-git commit -am "chore: JB_VERSION 0.0.82-jb.2"
+echo "0.0.83-jb.2" > JB_VERSION
+git commit -am "chore: JB_VERSION 0.0.83-jb.2"
 
 # 3. tag and push - the tag is the trigger
-git tag jb-v0.0.82-jb.2
-git push origin HEAD jb-v0.0.82-jb.2
+git tag jb-v0.0.83-jb.2
+git push origin HEAD jb-v0.0.83-jb.2
 ```
 
-The workflow refuses to publish if the tag does not equal `jb-v$(cat JB_VERSION)`, if `npm run build`
-(`tsc`) or `npm test` fail, or if any native platform/architecture smoke test fails. The `test` job installs
-`ripgrep` and `zsh` with Homebrew first, the same system dependencies `integration-tests.yml` installs
-on its macOS lane.
+The workflow refuses to publish if the tag does not equal `jb-v$(cat JB_VERSION)`, if
+`scripts/check-modifications.sh`, `npm run build` (`tsc`), `npm test` or
+`scripts/collect-third-party-licenses.sh` fail, or if any native platform/architecture smoke test
+fails. The `test` job installs `ripgrep` and `zsh` with Homebrew first, the same system dependencies
+`integration-tests.yml` installs on its macOS lane.
 
 **Dry run:** trigger `Release (JetBrains)` manually (`workflow_dispatch`). It runs the tests, builds all
 four platform/architecture combinations and smoke-tests them, and skips publication on branch refs.
@@ -61,21 +89,21 @@ four platform/architecture combinations and smoke-tests them, and skips publicat
 
 ## Published assets
 
-For `JB_VERSION=0.0.71-jb.2`, tag `jb-v0.0.71-jb.2`:
+For `JB_VERSION=<version>`, tag `jb-v<version>`:
 
 ```
-srt-0.0.71-jb.2-darwin-arm64
-srt-0.0.71-jb.2-darwin-arm64.sha256
-srt-0.0.71-jb.2-darwin-x64
-srt-0.0.71-jb.2-darwin-x64.sha256
-srt-0.0.71-jb.2-linux-arm64
-srt-0.0.71-jb.2-linux-arm64.sha256
-srt-0.0.71-jb.2-linux-x64
-srt-0.0.71-jb.2-linux-x64.sha256
-apply-seccomp-0.0.71-jb.2-linux-arm64
-apply-seccomp-0.0.71-jb.2-linux-arm64.sha256
-apply-seccomp-0.0.71-jb.2-linux-x64
-apply-seccomp-0.0.71-jb.2-linux-x64.sha256
+srt-<version>-darwin-arm64
+srt-<version>-darwin-arm64.sha256
+srt-<version>-darwin-x64
+srt-<version>-darwin-x64.sha256
+srt-<version>-linux-arm64
+srt-<version>-linux-arm64.sha256
+srt-<version>-linux-x64
+srt-<version>-linux-x64.sha256
+apply-seccomp-<version>-linux-arm64
+apply-seccomp-<version>-linux-arm64.sha256
+apply-seccomp-<version>-linux-x64
+apply-seccomp-<version>-linux-x64.sha256
 LICENSE
 MODIFICATIONS
 THIRD-PARTY
@@ -84,7 +112,7 @@ THIRD-PARTY
 Download URL template:
 
 ```
-https://github.com/paksv/sandbox-runtime/releases/download/jb-v<version>/srt-<version>-<os>-<arch>
+https://github.com/JetBrains/sandbox-runtime/releases/download/jb-v<version>/srt-<version>-<os>-<arch>
 ```
 
 `<arch>` is `arm64` or `x64`; `<os>` is `darwin` or `linux`. Linux installs must verify and
@@ -214,8 +242,8 @@ that would break Junie fails here instead of in a packaged build.
 | File | Why |
 |---|---|
 | `LICENSE` | Upstream's verbatim Apache-2.0 (`Copyright 2025 Anthropic`). Apache-2.0 §4(a). |
-| `MODIFICATIONS` | States that this is a modified copy, what was changed, and where the modified source lives. Apache-2.0 §4(b). Keeping this fork public is what makes it trivially defensible. |
-| `THIRD-PARTY` | Generated by `scripts/collect-third-party-licenses.sh` from `node_modules`: the MIT/BSD texts of `commander`, `zod`, `@pondwader/socks5-server` and `node-forge`, which `bun build --compile` statically inlines into the binary. `node-forge` is dual BSD-3-Clause/GPL-2.0; JetBrains elects BSD-3-Clause. |
+| `MODIFICATIONS` | States that this is a modified copy, what was changed, which upstream files were modified and where the modified source lives. Apache-2.0 §4(b). Keeping this fork public is what makes it trivially defensible. `scripts/check-modifications.sh` fails when its upstream base, `JB_VERSION` or file list no longer match the history. |
+| `THIRD-PARTY` | Generated by `scripts/collect-third-party-licenses.sh`: Bun's own license notice for the exact Bun version (MIT, plus the statically linked JavaScriptCore/WebKit under LGPL-2 with its source and relink instructions, and the other linked libraries), then the license texts of `commander`, `zod`, `@pondwader/socks5-server` and `node-forge`, which `bun build --compile` statically inlines into the binary. `node-forge` is dual BSD-3-Clause/GPL-2.0; JetBrains elects BSD-3-Clause. The script fails when the bundle's module graph contains a different package set than it credits; review the new package's license before adding it. |
 
 For Linux the workflow appends the build hosts' glibc and GCC runtime copyright/license notices and
 package versions to `THIRD-PARTY`: `apply-seccomp` statically links libc and compiler runtime code.
@@ -227,12 +255,14 @@ relinking obligations, as well as the existing Bun/JavaScriptCore legal review b
 
 `THIRD-PARTY` is generated, not committed — the workflow rebuilds it in the `publish` job and uploads it
 as a release asset. Upstream has no `NOTICE` file, so Apache-2.0 §4(d) does not apply.
+`.github/workflows/jetbrains-checks.yml` runs both licensing scripts on every PR, so an upstream sync
+cannot leave them stale.
 
 Two things this does **not** cover, both tracked on the Junie side:
 
-- Bun statically links **JavaScriptCore (LGPL-2.1)** into every `--compile` output. We modify neither bun
-  nor WebKit, and both are public, but shipping that inside a signed, notarized, proprietary app needs
-  legal sign-off.
+- Bun statically links **JavaScriptCore (LGPL-2)** into every `--compile` output. `THIRD-PARTY` carries
+  Bun's notice with the WebKit source and relink instructions, and we modify neither bun nor WebKit, but
+  shipping that inside a signed, notarized, proprietary app needs legal sign-off.
 - Apache-2.0 §6 grants no trademark rights: do not market Junie's sandbox as "Anthropic-powered", and do
   not ship this repo's `README.md` (titled "Anthropic Sandbox Runtime") inside the app. The compiled CLI
   itself is brand-neutral — `src/cli.ts` sets `.name('srt')` and prints no Anthropic/Claude strings in
@@ -250,6 +280,8 @@ Other upstream workflows and the npm package version remain unchanged.
 JB_VERSION
 MODIFICATIONS
 .github/workflows/release-junie.yml
+.github/workflows/jetbrains-checks.yml
+scripts/check-modifications.sh
 scripts/smoke-test-srt.sh
 scripts/smoke-test-srt-fixture.py
 scripts/collect-third-party-licenses.sh

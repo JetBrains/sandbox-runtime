@@ -3,7 +3,7 @@ name: Release (JetBrains)
 # Builds the standalone `srt` binaries JetBrains Junie bundles and publishes them as GitHub
 # Release assets. Separate from release.yml on purpose: that workflow npm-publishes
 # @anthropic-ai/sandbox-runtime with upstream's credentials, and keeping it byte-identical to
-# upstream keeps rebases mechanical. See docs/jetbrains-build.md.
+# upstream keeps upstream merges mechanical. See docs/jetbrains-build.md.
 
 on:
   push:
@@ -19,6 +19,8 @@ jobs:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
@@ -27,6 +29,8 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.4.2
+
+      - run: ./scripts/check-modifications.sh
 
       # Same system dependencies integration-tests.yml installs on its macOS lane; srt shells out to rg.
       - run: brew install ripgrep zsh
@@ -175,6 +179,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
 
       - name: Verify the tag matches JB_VERSION
         run: |
