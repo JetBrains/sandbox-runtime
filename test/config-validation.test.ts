@@ -112,12 +112,14 @@ describe('Config Validation', () => {
         'git push': ['/usr/bin/nc'],
       },
       enableWeakerNestedSandbox: true,
+      skipUserNamespace: true,
       allowNestedUserNamespaces: true,
       enableWeakerNetworkIsolation: false,
     }
 
     const result = SandboxRuntimeConfigSchema.safeParse(config)
     expect(result.success).toBe(true)
+    expect(result.data?.skipUserNamespace).toBe(true)
     expect(result.data?.allowNestedUserNamespaces).toBe(true)
   })
 

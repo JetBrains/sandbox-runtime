@@ -77,6 +77,11 @@ export interface LinuxSandboxParams {
    */
   maskedFileStoreDir?: string
   enableWeakerNestedSandbox?: boolean
+  /**
+   * Do not pass --unshare-user to bwrap. Only honoured when bwrap is setuid
+   * root and the caller is not root; anything else throws.
+   */
+  skipUserNamespace?: boolean
   /** Lets the command undo the write denies: see {@link NESTED_USERNS_ENV}. */
   allowNestedUserNamespaces?: boolean
   allowAllUnixSockets?: boolean
@@ -1271,6 +1276,28 @@ export type LinuxDependencyOptions = {
   socatPath?: string
 }
 
+/**
+ * Whether a file with this mode and owner runs as root for a caller that is
+ * not root itself.
+ */
+export function isSetuidRootForCaller(
+  file: { mode: number; uid: number },
+  callerEuid: number,
+): boolean {
+  return callerEuid !== 0 && file.uid === 0 && (file.mode & 0o4000) !== 0
+}
+
+function bwrapIsSetuidRootForCaller(bwrapPath: string | undefined): boolean {
+  const resolved = bwrapPath ?? whichSync('bwrap')
+  const callerEuid = process.geteuid?.()
+  if (!resolved || callerEuid === undefined) return false
+  try {
+    return isSetuidRootForCaller(fs.statSync(resolved), callerEuid)
+  } catch {
+    return false
+  }
+}
+
 function isExecutable(p: string): boolean {
   try {
     fs.accessSync(p, fs.constants.X_OK)
@@ -1739,6 +1766,11 @@ function resolveApplySeccompPrefix(
     return `ARGV0=${quote([argv0])} ${quote([applyPath])} `
   }
   const binary = getApplySeccompBinaryPath(applyPath)
+  if (binary && !isExecutable(binary)) {
+    throw new Error(
+      `apply-seccomp is not executable at ${binary}; Unix-socket blocking cannot be enabled.`,
+    )
+  }
   return binary ? `${quote([binary])} ` : undefined
 }
 
@@ -3548,6 +3580,7 @@ export async function wrapCommandWithSandboxLinux(
     maskedFileBinds,
     maskedFileStoreDir,
     enableWeakerNestedSandbox,
+    skipUserNamespace = false,
     allowNestedUserNamespaces,
     allowAllUnixSockets,
     binShell,
@@ -3586,9 +3619,23 @@ export async function wrapCommandWithSandboxLinux(
     !hasReadRestrictions &&
     !hasWriteRestrictions &&
     !hasEnvRestrictions &&
-    !hasGitConfig
+    !hasGitConfig &&
+    allowAllUnixSockets
   ) {
     return command
+  }
+
+  if (skipUserNamespace) {
+    if (enableWeakerNestedSandbox) {
+      throw new Error(
+        'skipUserNamespace cannot be combined with enableWeakerNestedSandbox',
+      )
+    }
+    if (!bwrapIsSetuidRootForCaller(bwrapPath)) {
+      throw new Error(
+        'skipUserNamespace requires a setuid-root bwrap and a non-root caller',
+      )
+    }
   }
 
   // Mark this sandbox invocation as active. cleanupBwrapMountPoints() will
@@ -3622,19 +3669,17 @@ export async function wrapCommandWithSandboxLinux(
       )
 
       if (!applySeccompPrefix) {
-        logForDebugging(
-          '[Sandbox Linux] apply-seccomp binary not available - unix socket blocking disabled. ' +
-            'Install @anthropic-ai/sandbox-runtime globally for full protection.',
-          { level: 'warn' },
-        )
-      } else {
-        applySeccompPrefix =
-          helperEnvironmentPrefix(allowNestedUserNamespaces === true) +
-          applySeccompPrefix
-        logForDebugging(
-          '[Sandbox Linux] Applying seccomp filter for Unix socket blocking',
+        throw new Error(
+          'apply-seccomp not found; Unix-socket blocking cannot be enabled. ' +
+            'Install the matching helper beside srt or set network.allowAllUnixSockets to true.',
         )
       }
+      applySeccompPrefix =
+        helperEnvironmentPrefix(allowNestedUserNamespaces === true) +
+        applySeccompPrefix
+      logForDebugging(
+        '[Sandbox Linux] Applying seccomp filter for Unix socket blocking',
+      )
     } else {
       logForDebugging(
         '[Sandbox Linux] Skipping seccomp filter - allowAllUnixSockets is enabled',
@@ -3842,8 +3887,15 @@ export async function wrapCommandWithSandboxLinux(
         level: 'warn',
       })
     }
+    // skipUserNamespace opts out of the forced userns for hosts where the
+    // kernel refuses one (EPERM for any process in a chroot, e.g. some
+    // microVM guests). It is only accepted, on entry, for a setuid-root
+    // bwrap called by a non-root user, which needs no userns and drops
+    // every capability itself before exec.
+    if (!skipUserNamespace) {
+      bwrapArgs.push('--unshare-user')
+    }
     bwrapArgs.push(
-      '--unshare-user',
       ...capabilityArgs({
         euid,
         hasSetfcap,
@@ -3874,9 +3926,10 @@ export async function wrapCommandWithSandboxLinux(
       applySeccompPrefix === undefined &&
       allowNestedUserNamespaces !== true
     ) {
-      const bwrap = enableWeakerNestedSandbox
-        ? null
-        : (bwrapPath ?? whichSync('bwrap'))
+      const bwrap =
+        enableWeakerNestedSandbox || skipUserNamespace
+          ? null
+          : (bwrapPath ?? whichSync('bwrap'))
       if (bwrap !== null && bwrapCanDisableUserns(bwrap)) {
         bwrapArgs.push('--disable-userns')
       } else if (!noUsernsLimitLogged) {

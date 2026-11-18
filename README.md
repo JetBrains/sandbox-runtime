@@ -525,7 +525,7 @@ While `filterRequest` is set, `TRACE` and `TRACK` requests are answered 405 befo
 Unix sockets are **blocked by default** on both platforms.
 
 - **macOS**: Use `allowUnixSockets` to allow specific paths (e.g., `["/var/run/docker.sock"]`), or `allowAllUnixSockets: true` to allow all.
-- **Linux**: Blocking uses seccomp filters (x64/arm64 only). If seccomp isn't available, sockets are unrestricted and a warning is shown. Use `allowAllUnixSockets: true` to explicitly disable blocking.
+- **Linux**: Blocking uses seccomp filters (x64/arm64 only). If the `apply-seccomp` helper is missing, not executable, or cannot establish the filter, execution fails rather than allowing sockets. Standalone builds look beside `srt` for the matching helper; package-install lookup remains supported. Use `allowAllUnixSockets: true` to explicitly disable blocking without requiring the helper. See [JetBrains builds](docs/jetbrains-build.md) for the supported standalone release layout.
 
 #### Filesystem Configuration
 
@@ -594,6 +594,7 @@ Examples:
 
 - `ignoreViolations` - Object mapping command patterns to arrays of paths where violations should be ignored
 - `enableWeakerNestedSandbox` - Enable weaker sandbox mode for Docker environments (boolean, default: false)
+- `skipUserNamespace` - Do not pass `--unshare-user` to `bwrap` on Linux (boolean, default: false). Needed where the kernel refuses a user namespace, such as a chrooted microVM guest. It requires a setuid-root `bwrap` and a non-root caller, and the sandbox fails to start otherwise; it cannot be combined with `enableWeakerNestedSandbox`. `--unshare-pid`, `--cap-drop ALL` and `--proc /proc` are kept. **Security warning:** without a user namespace, isolation relies on the setuid `bwrap` dropping its privileges before it runs the command.
 - `allowNestedUserNamespaces` - Linux: let the sandboxed command create user namespaces of its own (boolean, default: false). By default it cannot: see "The command stays in the namespaces made for it" under Platform-Specific Dependencies. Turn it on only where the commands run have to sandbox themselves that way (a browser with its namespace sandbox, rootless podman or buildah, a nested bubblewrap, `unshare -r` in a build script), and treat `denyWrite` and the mandatory denies as not holding against any command run under it. It can be given for a single command, in the configuration passed to `wrapWithSandbox`.
 - `javaAgentJarPath` - macOS/Linux: absolute path to `srt-proxy-agent.jar`, the JVM agent injected via `JAVA_TOOL_OPTIONS` (see "JVM tools" under Network Isolation). Only needed by consumers that bundle sandbox-runtime and ship the jar separately; a normal npm install finds it under `vendor/java-proxy-agent/`.
 - `enableWeakerNetworkIsolation` - Allow access to `com.apple.trustd.agent` in the macOS sandbox (boolean, default: false). This is needed for Go programs (`gh`, `gcloud`, `terraform`, `kubectl`, etc.) to verify TLS certificates when using `httpProxyPort` with a MITM proxy and custom CA. **Security warning:** enabling this opens a potential data exfiltration vector through the trustd service.

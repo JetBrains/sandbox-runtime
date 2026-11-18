@@ -167,6 +167,7 @@ function getLocalSeccompPaths(filename: string): string[] {
   const relativePath = join('vendor', 'seccomp', arch, filename)
 
   return [
+    join(dirname(process.execPath), filename),
     join(baseDir, relativePath), // bundled: same directory as bundle (e.g., when bundled into claude-cli)
     join(baseDir, '..', '..', relativePath), // package root: vendor/seccomp/...
     join(baseDir, '..', relativePath), // dist: dist/vendor/seccomp/...
@@ -174,7 +175,7 @@ function getLocalSeccompPaths(filename: string): string[] {
 }
 
 /**
- * Get the path to the apply-seccomp binary from the vendor directory
+ * Get the path to the apply-seccomp binary
  * Returns the path if it exists, null otherwise
  *
  * Pre-built apply-seccomp binaries are organized by architecture:
@@ -182,10 +183,11 @@ function getLocalSeccompPaths(filename: string): string[] {
  *
  * Tries multiple paths for resilience:
  * 0. Explicit path provided via parameter (checked first if provided)
- * 1. vendor/seccomp/{arch}/apply-seccomp (bundled - when bundled into consuming packages)
- * 2. ../../vendor/seccomp/{arch}/apply-seccomp (package root - standard npm installs)
- * 3. ../vendor/seccomp/{arch}/apply-seccomp (dist/vendor - for bundlers)
- * 4. Global npm install (if seccompBinaryPath not provided) - for native builds
+ * 1. apply-seccomp beside process.execPath (standalone builds)
+ * 2. vendor/seccomp/{arch}/apply-seccomp (bundled - when bundled into consuming packages)
+ * 3. ../../vendor/seccomp/{arch}/apply-seccomp (package root - standard npm installs)
+ * 4. ../vendor/seccomp/{arch}/apply-seccomp (dist/vendor - for bundlers)
+ * 5. Global npm install (if seccompBinaryPath not provided) - for native builds
  *
  * @param seccompBinaryPath - Optional explicit path to the apply-seccomp binary. If provided
  *   and exists, it will be used. If not provided, falls back to searching local paths and
