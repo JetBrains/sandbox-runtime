@@ -1,6 +1,11 @@
-This is a modified copy of Anthropic's sandbox-runtime (Apache-2.0).
+This is a modified copy of sandbox-runtime by Anthropic, licensed under the Apache License, Version 2.0.
+Modifications Copyright 2026 JetBrains s.r.o., licensed under the Apache License, Version 2.0.
 
-Modification: Added an opt-in network.unrestricted configuration flag and --unrestricted-network CLI flag that bypasses the proxy-based network filter while keeping the filesystem sandbox.
+Upstream URL: https://github.com/anthropics/sandbox-runtime
+Modified-source URL: https://github.com/JetBrains/sandbox-runtime
+Upstream base: v0.0.83 (0bbebed0aa9a8e628dc4df8bc30293550a1988eb)
+
+Modification: Added an opt-in network.unrestricted configuration flag and --unrestricted-network CLI flag that bypasses the proxy-based network filter while keeping the filesystem sandbox. Sandboxed commands still receive SANDBOX_RUNTIME=1 and TMPDIR on Linux, and on macOS the system trust agents (com.apple.TrustEvaluationAgent, com.apple.trustd.agent) are reachable in this mode.
 
 Modification: Linux standalone builds discover apply-seccomp beside the executable. Requested Unix-socket blocking fails closed when the helper is missing or not executable, including when no other restrictions are requested. Existing package-install lookup is preserved.
 
@@ -8,6 +13,17 @@ Modification: Added an opt-in skipUserNamespace configuration flag. On Linux it 
 
 Distribution: Native macOS and Linux x64/arm64 executables are built and smoke-tested by release-junie.yml. Linux releases include an architecture-matched apply-seccomp helper; bubblewrap, socat and ripgrep remain system dependencies. See docs/jetbrains-build.md for the tested baseline and THIRD-PARTY for bundled dependency notices.
 
-Upstream URL: https://github.com/anthropic-experimental/sandbox-runtime
-Modified-source URL: https://github.com/paksv/sandbox-runtime
-Base commit: f7a0f19 (v0.0.82)
+Files added by JetBrains are not listed. Modified upstream files (checked by scripts/check-modifications.sh):
+  - .gitignore
+  - README.md
+  - src/cli.ts
+  - src/sandbox/generate-seccomp-filter.ts
+  - src/sandbox/linux-sandbox-utils.ts
+  - src/sandbox/macos-sandbox-utils.ts
+  - src/sandbox/sandbox-config.ts
+  - src/sandbox/sandbox-manager.ts
+  - src/sandbox/windows-sandbox-utils.ts
+  - test/cli.test.ts
+  - test/config-validation.test.ts
+  - test/sandbox/allow-read.test.ts
+  - test/sandbox/wrap-with-sandbox.test.ts

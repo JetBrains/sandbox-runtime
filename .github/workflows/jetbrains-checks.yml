@@ -1,0 +1,35 @@
+name: JetBrains checks
+
+# Licensing invariants of the JetBrains fork, checked on every PR so an upstream sync cannot leave
+# MODIFICATIONS or THIRD-PARTY stale. See docs/jetbrains-build.md.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  licensing:
+    name: Licensing notices
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+
+      - run: ./scripts/check-modifications.sh
+
+      - run: npm ci --ignore-scripts
+
+      - run: ./scripts/collect-third-party-licenses.sh
