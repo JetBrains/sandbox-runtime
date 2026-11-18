@@ -9,6 +9,7 @@ test('socket blocking alone rejects a non-executable helper', async () => {
   const helper = join(directory, 'apply-seccomp')
   try {
     writeFileSync(helper, '#!/bin/sh\nexit 0\n', { mode: 0o600 })
+    // eslint-disable-next-line @typescript-eslint/await-thenable -- bun:test types .rejects.toThrow() as void; the await is required at runtime
     await expect(
       wrapCommandWithSandboxLinux({
         command: 'true',
